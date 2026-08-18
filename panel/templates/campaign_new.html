@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Новая рассылка</h1>
+
+<form method="post" id="campaign-form">
+  <div class="grid cols-2">
+    <div class="card">
+      <h2>Сообщение</h2>
+      <label><span>Название кампании (видите только вы)</span>
+        <input type="text" name="name" placeholder="Акция ко Дню знаний" required></label>
+
+      <label><span>Текст SMS</span>
+        <textarea name="template" id="template" required
+          placeholder="Здравствуйте, {имя}! Ждём вас на открытии. Отписка: СТОП"></textarea></label>
+
+      <div class="muted" id="template-info">—</div>
+
+      {% if fields %}
+        <p class="muted" style="margin-top:12px">Доступные переменные (клик — вставить):</p>
+        <div class="row">
+          {% for f in fields %}
+            <button type="button" class="btn small ins" data-var="{{ f }}">{{ '{' ~ f ~ '}' }}</button>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <label class="inline" style="margin-top:16px">
+        <input type="checkbox" name="only_consent" id="only_consent" checked>
+        <span>Только контакты с согласием ({{ contacts_consent }} из {{ contacts_all }})</span>
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>Темп отправки</h2>
+      <p class="muted">Android без подтверждения пользователя пропускает около
+        30 SMS за 30 минут. Слишком быстрый темп с обычной SIM — прямой путь
+        к блокировке номера оператором.</p>
+
+      <div class="grid cols-2">
+        <label><span>Пауза между SMS, сек</span>
+          <input type="number" name="delay_sec" value="{{ settings.delay_sec }}"
+                 min="0" step="0.5"></label>
+        <label><span>Случайная добавка, сек</span>
+          <input type="number" name="jitter_sec" value="{{ settings.jitter_sec }}"
+                 min="0" step="0.5"></label>
+        <label><span>Лимит SMS в час</span>
+          <input type="number" name="hourly_limit" value="{{ settings.hourly_limit }}"
+                 min="1"></label>
+        <label><span>SIM-карта (0 — по умолчанию)</span>
+          <input type="number" name="sim_number" value="{{ settings.sim_number }}"
+                 min="0" max="3"></label>
+      </div>
+
+      <h2 style="margin-top:18px">Предпросмотр</h2>
+      <div id="preview"><p class="muted">Начните вводить текст сообщения.</p></div>
+    </div>
+  </div>
+
+  <div class="card row">
+    <button class="btn primary" type="submit">Создать кампанию</button>
+    <span class="muted">Кампания создаётся в состоянии «черновик» — отправка
+      начнётся только после нажатия «Запустить» на её странице.</span>
+  </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const area = document.getElementById('template');
+const info = document.getElementById('template-info');
+const preview = document.getElementById('preview');
+const consent = document.getElementById('only_consent');
+let timer = null;
+
+document.querySelectorAll('.ins').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    const token = '{' + btn.dataset.var + '}';
+    const at = area.selectionStart || area.value.length;
+    area.value = area.value.slice(0, at) + token + area.value.slice(at);
+    area.focus();
+    area.selectionStart = area.selectionEnd = at + token.length;
+    schedule();
+  });
+});
+
+function schedule() {
+  clearTimeout(timer);
+  timer = setTimeout(refresh, 350);
+}
+
+async function refresh() {
+  if (!area.value.trim()) {
+    info.textContent = '—';
+    preview.innerHTML = '<p class="muted">Начните вводить текст сообщения.</p>';
+    return;
+  }
+  const response = await fetch('{{ url_for("campaign_preview") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({template: area.value, only_consent: consent.checked})
+  });
+  const data = await response.json();
+
+  info.textContent = data.template_info + ' · получателей: ' + data.total +
+                     ' · всего сегментов: ' + data.total_segments;
+
+  if (!data.samples.length) {
+    preview.innerHTML = '<p class="muted">Нет контактов для предпросмотра.</p>';
+    return;
+  }
+  preview.innerHTML = data.samples.map(function (s) {
+    const warn = s.missing.length
+      ? '<div class="muted" style="color:#b45309">нет полей: ' + s.missing.join(', ') + '</div>'
+      : '';
+    return '<div class="preview-sample"><div class="p">' + s.phone + ' · ' + s.info +
+           '</div>' + escapeHtml(s.text) + warn + '</div>';
+  }).join('');
+}
+
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = value;
+  return div.innerHTML;
+}
+
+area.addEventListener('input', schedule);
+consent.addEventListener('change', schedule);
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Контакты — {{ total }}</h1>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Добавить вручную</h2>
+    <form method="post" action="{{ url_for('contacts_add') }}">
+      <label><span>Телефон</span>
+        <input type="text" name="phone" placeholder="+7 900 123-45-67" required></label>
+      <label><span>Имя</span><input type="text" name="name" placeholder="Иван"></label>
+      <label class="inline"><input type="checkbox" name="consent" checked>
+        <span>Есть согласие на рассылку</span></label>
+      <button class="btn primary" type="submit">Добавить</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Импорт базы</h2>
+    <p class="muted">CSV или Excel. Номера приводятся к формату +7…, дубликаты
+      объединяются, номера из стоп-листа пропускаются.</p>
+    <a class="btn primary" href="{{ url_for('contacts_import') }}">Загрузить файл</a>
+  </div>
+</div>
+
+<div class="card">
+  <form class="row" method="get" style="margin-bottom:14px">
+    <input type="text" name="q" value="{{ search }}" placeholder="Поиск по номеру или имени"
+           style="max-width:320px">
+    <button class="btn" type="submit">Найти</button>
+    {% if search %}<a class="btn" href="{{ url_for('contacts') }}">Сбросить</a>{% endif %}
+  </form>
+
+  <table>
+    <thead>
+      <tr><th>Телефон</th><th>Имя</th><th>Согласие</th><th>Источник</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for c in contacts %}
+        <tr>
+          <td class="mono">{{ c.phone }}</td>
+          <td>{{ c.name }}</td>
+          <td>{% if c.consent %}<span class="badge done">да</span>
+              {% else %}<span class="badge failed">нет</span>{% endif %}</td>
+          <td class="muted">{{ c.source }}</td>
+          <td style="text-align:right">
+            <form method="post" action="{{ url_for('contacts_delete', contact_id=c.id) }}"
+                  onsubmit="return confirm('Удалить {{ c.phone }}?')">
+              <button class="btn small danger" type="submit">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="muted">Пусто</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if pages > 1 %}
+    <div class="row" style="margin-top:14px">
+      {% if page > 1 %}
+        <a class="btn small" href="{{ url_for('contacts', q=search, page=page-1) }}">← Назад</a>
+      {% endif %}
+      <span class="muted">Страница {{ page }} из {{ pages }}</span>
+      {% if page < pages %}
+        <a class="btn small" href="{{ url_for('contacts', q=search, page=page+1) }}">Вперёд →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

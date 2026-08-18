@@ -1,0 +1,6 @@
+.venv-build/
+src/
+build/
+dist/
+__pycache__/
+*.pyc

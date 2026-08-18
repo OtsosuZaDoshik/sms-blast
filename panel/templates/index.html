@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="grid cols-4">
+  <div class="card stat"><div class="num">{{ totals.contacts }}</div><div class="lbl">контактов</div></div>
+  <div class="card stat"><div class="num">{{ totals.campaigns }}</div><div class="lbl">кампаний</div></div>
+  <div class="card stat"><div class="num">{{ totals.delivered }}</div><div class="lbl">доставлено</div></div>
+  <div class="card stat"><div class="num">{{ totals.optout }}</div><div class="lbl">в стоп-листе</div></div>
+</div>
+
+{% if state.error %}
+  <div class="flash error">Шлюз: {{ state.error }}</div>
+{% elif state.message %}
+  <div class="flash ok">{{ state.message }}</div>
+{% endif %}
+
+<div class="card">
+  <h2>Кампании</h2>
+  {% if campaigns %}
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Название</th><th>Статус</th>
+          <th class="num">Всего</th><th class="num">Отправлено</th><th class="num">Ошибок</th>
+          <th>Создана</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in campaigns %}
+          <tr>
+            <td>{{ c.id }}</td>
+            <td><a href="{{ url_for('campaign', campaign_id=c.id) }}">{{ c.name }}</a></td>
+            <td><span class="badge {{ c.status }}">{{ c.status }}</span></td>
+            <td class="num">{{ c.total }}</td>
+            <td class="num">{{ c.sent }}</td>
+            <td class="num">{{ c.failed }}</td>
+            <td class="muted">{{ c.created_at }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Кампаний пока нет. Сначала импортируйте базу номеров на странице
+      «<a href="{{ url_for('contacts_import') }}">Контакты → Импорт</a>»,
+      затем создайте рассылку.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

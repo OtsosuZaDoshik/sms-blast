@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>{{ campaign.name }}
+  <span class="badge {{ campaign.status }}" id="status-badge">{{ campaign.status }}</span></h1>
+
+<div class="card">
+  <div class="progress" id="bar">
+    <i class="p-delivered" style="width:0%"></i>
+    <i class="p-sent" style="width:0%"></i>
+    <i class="p-failed" style="width:0%"></i>
+  </div>
+
+  <div class="grid cols-4" id="counters">
+    <div class="stat"><div class="num" data-k="total">{{ stats.total }}</div><div class="lbl">всего</div></div>
+    <div class="stat"><div class="num" data-k="queued">{{ stats.get('queued', 0) }}</div><div class="lbl">в очереди</div></div>
+    <div class="stat"><div class="num" data-k="sent">{{ stats.get('sent', 0) }}</div><div class="lbl">отправлено</div></div>
+    <div class="stat"><div class="num" data-k="delivered">{{ stats.get('delivered', 0) }}</div><div class="lbl">доставлено</div></div>
+  </div>
+
+  <div class="row" style="margin-top:16px">
+    {% if campaign.status in ('draft', 'paused', 'stopped') %}
+      <form method="post" action="{{ url_for('campaign_action', campaign_id=campaign.id, action='start') }}">
+        <button class="btn primary" type="submit">
+          {{ 'Запустить' if campaign.status == 'draft' else 'Продолжить' }}</button>
+      </form>
+    {% endif %}
+    {% if campaign.status == 'running' %}
+      <form method="post" action="{{ url_for('campaign_action', campaign_id=campaign.id, action='pause') }}">
+        <button class="btn" type="submit">Пауза</button>
+      </form>
+      <form method="post" action="{{ url_for('campaign_action', campaign_id=campaign.id, action='stop') }}"
+            onsubmit="return confirm('Остановить рассылку?')">
+        <button class="btn danger" type="submit">Остановить</button>
+      </form>
+    {% endif %}
+    {% if stats.get('failed') %}
+      <form method="post" action="{{ url_for('campaign_action', campaign_id=campaign.id, action='requeue-failed') }}">
+        <button class="btn" type="submit">Повторить неудачные ({{ stats.failed }})</button>
+      </form>
+    {% endif %}
+    <a class="btn" href="{{ url_for('campaign_export', campaign_id=campaign.id) }}">Выгрузить отчёт CSV</a>
+  </div>
+
+  <p class="muted" id="live-note" style="margin-top:14px"></p>
+</div>
+
+<div class="card">
+  <h2>Шаблон</h2>
+  <div class="preview-sample">{{ campaign.template }}</div>
+  <p class="muted">{{ campaign.template | segments }} ·
+    пауза {{ campaign.delay_sec }}&nbsp;с (+до {{ campaign.jitter_sec }}&nbsp;с) ·
+    лимит {{ campaign.hourly_limit }}&nbsp;SMS/час</p>
+</div>
+
+<div class="card">
+  <h2>Журнал отправки</h2>
+  <table>
+    <thead><tr><th>Телефон</th><th>Статус</th><th>Отправлено</th><th>Ошибка</th></tr></thead>
+    <tbody id="log">
+      {% for m in messages %}
+        <tr>
+          <td class="mono">{{ m.phone }}</td>
+          <td><span class="badge {{ m.status }}">{{ m.status }}</span></td>
+          <td class="muted">{{ m.sent_at or '' }}</td>
+          <td class="muted">{{ m.error or '' }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const url = '{{ url_for("campaign_progress", campaign_id=campaign.id) }}';
+let previousStatus = '{{ campaign.status }}';
+
+async function tick() {
+  try {
+    const data = await (await fetch(url)).json();
+    const stats = data.stats;
+    const total = stats.total || 0;
+
+    document.querySelectorAll('#counters .num').forEach(function (node) {
+      const key = node.dataset.k;
+      node.textContent = key === 'total' ? total : (stats[key] || 0);
+    });
+
+    const bar = document.getElementById('bar').children;
+    const pct = function (n) { return total ? (100 * n / total) + '%' : '0%'; };
+    bar[0].style.width = pct(stats.delivered || 0);
+    bar[1].style.width = pct(stats.sent || 0);
+    bar[2].style.width = pct((stats.failed || 0) + (stats.skipped || 0));
+
+    const badge = document.getElementById('status-badge');
+    badge.textContent = data.status;
+    badge.className = 'badge ' + data.status;
+
+    const note = document.getElementById('live-note');
+    note.textContent = data.state.error ? ('Ошибка: ' + data.state.error)
+                                        : (data.state.message || '');
+    note.style.color = data.state.error ? '#b91c1c' : '';
+
+    document.getElementById('log').innerHTML = data.recent.map(function (m) {
+      return '<tr><td class="mono">' + m.phone + '</td>' +
+             '<td><span class="badge ' + m.status + '">' + m.status + '</span></td>' +
+             '<td class="muted">' + m.sent_at + '</td>' +
+             '<td class="muted">' + m.error + '</td></tr>';
+    }).join('');
+
+    // Кнопки зависят от статуса — перерисовываем страницу при его смене.
+    if (data.status !== previousStatus) { location.reload(); }
+    previousStatus = data.status;
+  } catch (e) { /* панель могла быть остановлена — молча ждём */ }
+}
+
+setInterval(tick, 2000);
+tick();
+</script>
+{% endblock %}

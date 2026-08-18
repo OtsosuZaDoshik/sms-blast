@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Импорт базы номеров</h1>
+
+<div class="card">
+  <form method="post" enctype="multipart/form-data">
+    <label><span>Файл CSV или Excel (.csv, .xlsx)</span>
+      <input type="file" name="file" accept=".csv,.xlsx,.xlsm,.txt" required></label>
+    <button class="btn primary" type="submit">Загрузить и разметить колонки</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Как должен выглядеть файл</h2>
+  <p class="muted">Первая строка — заголовки. Обязательна только колонка с телефоном;
+    остальные становятся переменными для подстановки в текст сообщения.</p>
+  <table>
+    <thead><tr><th>телефон</th><th>имя</th><th>город</th><th>согласие</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">+79001234567</td><td>Иван</td><td>Москва</td><td>да</td></tr>
+      <tr><td class="mono">8 (900) 765-43-21</td><td>Мария</td><td>Казань</td><td>да</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:12px">
+    Кодировка определяется автоматически (UTF-8 или Windows-1251), разделитель — запятая,
+    точка с запятой или табуляция.</p>
+</div>
+
+{% endblock %}

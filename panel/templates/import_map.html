@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Разметка колонок</h1>
+<p class="muted">Строк в файле: {{ row_count }}</p>
+
+<div class="card">
+  <form method="post" action="{{ url_for('contacts_import_confirm') }}">
+    <input type="hidden" name="path" value="{{ path }}">
+
+    <div class="grid cols-2">
+      <label><span>Колонка с телефоном (обязательно)</span>
+        <select name="phone_column" required>
+          {% for h in headers %}
+            <option value="{{ h }}" {% if h == phone_column %}selected{% endif %}>{{ h }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label><span>Колонка с именем</span>
+        <select name="name_column">
+          <option value="">— нет —</option>
+          {% for h in headers %}
+            <option value="{{ h }}" {% if h == name_column %}selected{% endif %}>{{ h }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label><span>Колонка с согласием на рассылку</span>
+        <select name="consent_column">
+          <option value="">— нет —</option>
+          {% for h in headers %}
+            <option value="{{ h }}" {% if h == consent_column %}selected{% endif %}>{{ h }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="inline" style="align-self:end;margin-bottom:20px">
+        <input type="checkbox" name="default_consent" checked>
+        <span>Считать, что согласие есть, если колонки нет</span>
+      </label>
+    </div>
+
+    <button class="btn primary" type="submit">Импортировать</button>
+    <a class="btn" href="{{ url_for('contacts_import') }}">Отмена</a>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Первые строки файла</h2>
+  <div style="overflow-x:auto">
+    <table>
+      <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>{% for h in headers %}<td>{{ row.get(h, '') }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

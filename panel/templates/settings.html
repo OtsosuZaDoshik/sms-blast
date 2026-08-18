@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Настройки</h1>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Подключение к телефону</h2>
+    <p class="muted">Логин и пароль берутся из приложения SMS Gateway на телефоне:
+      раздел Local Server.</p>
+    <form method="post">
+      <label><span>Способ подключения</span>
+        <select name="connection_mode" id="mode">
+          <option value="usb" {% if settings.connection_mode == 'usb' %}selected{% endif %}>
+            USB-кабель — адрес не меняется никогда</option>
+          <option value="wifi" {% if settings.connection_mode != 'usb' %}selected{% endif %}>
+            Wi-Fi — по адресу телефона в сети</option>
+        </select>
+      </label>
+
+      <div id="usb-block">
+        <p class="muted">Порт шлюза пробрасывается через кабель на
+          <span class="mono">127.0.0.1</span>. Wi-Fi не нужен вовсе: телефон может
+          сидеть на мобильном интернете и попутно заряжаться.</p>
+        <label><span>Локальный порт на Mac</span>
+          <input type="number" name="usb_local_port"
+                 value="{{ settings.usb_local_port }}" min="1024" max="65535"></label>
+        <div class="row">
+          <button class="btn primary" type="button" id="usb-connect">Подключить по USB</button>
+          <button class="btn" type="button" id="usb-status">Что видит adb</button>
+        </div>
+        <div id="usb-result" class="muted" style="margin-top:10px"></div>
+      </div>
+
+      <div id="wifi-block">
+        <div class="grid cols-2">
+          <label><span>IP телефона в локальной сети</span>
+            <input type="text" name="gateway_host" value="{{ settings.gateway_host }}"></label>
+          <label><span>Порт шлюза на телефоне</span>
+            <input type="number" name="gateway_port"
+                   value="{{ settings.gateway_port }}"></label>
+        </div>
+      </div>
+
+      <div class="grid cols-2">
+        <label><span>Логин</span>
+          <input type="text" name="gateway_user" value="{{ settings.gateway_user }}"></label>
+        <label><span>Пароль</span>
+          <input type="password" name="gateway_password"
+                 placeholder="{{ '••••••••' if settings.gateway_password else 'не задан' }}">
+        </label>
+      </div>
+
+      <h2 style="margin-top:8px">По умолчанию для новых рассылок</h2>
+      <div class="grid cols-2">
+        <label><span>Код страны для номеров без «+»</span>
+          <input type="text" name="default_country_code"
+                 value="{{ settings.default_country_code }}"></label>
+        <label><span>SIM-карта (0 — по умолчанию)</span>
+          <input type="number" name="sim_number" value="{{ settings.sim_number }}"
+                 min="0" max="3"></label>
+        <label><span>Пауза между SMS, сек</span>
+          <input type="number" name="delay_sec" value="{{ settings.delay_sec }}"
+                 min="0" step="0.5"></label>
+        <label><span>Случайная добавка, сек</span>
+          <input type="number" name="jitter_sec" value="{{ settings.jitter_sec }}"
+                 min="0" step="0.5"></label>
+        <label><span>Лимит SMS в час</span>
+          <input type="number" name="hourly_limit" value="{{ settings.hourly_limit }}"
+                 min="1"></label>
+        <label><span>Попыток на сообщение</span>
+          <input type="number" name="max_attempts" value="{{ settings.max_attempts }}"
+                 min="1" max="10"></label>
+      </div>
+
+      <button class="btn primary" type="submit">Сохранить</button>
+      <button class="btn" type="button" id="check">Проверить связь</button>
+      <button class="btn" type="button" id="discover">Найти телефон</button>
+      <div id="check-result" class="muted" style="margin-top:10px"></div>
+    </form>
+
+    <div id="discovery"></div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Тестовое SMS</h2>
+      <p class="muted">Отправьте одно сообщение себе, прежде чем запускать рассылку
+        на всю базу.</p>
+      <form method="post" action="{{ url_for('settings_test_sms') }}">
+        <label><span>Телефон</span>
+          <input type="text" name="phone" placeholder="+7 900 123-45-67" required></label>
+        <label><span>Текст</span>
+          <textarea name="text" style="min-height:80px">Проверка связи</textarea></label>
+        <button class="btn primary" type="submit">Отправить тест</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Настройка телефона</h2>
+      <ol class="muted" style="padding-left:18px;line-height:1.8">
+        <li>Установите на Android приложение <b>SMS Gateway for Android</b>
+          (APK со страницы релизов проекта).</li>
+        <li>Выдайте разрешение <b>Отправка SMS</b>.</li>
+        <li>Включите переключатель <b>Local Server</b> и нажмите <b>Offline</b>.</li>
+        <li>Перепишите отсюда <b>логин и пароль</b> в поля слева.</li>
+        <li>Отключите оптимизацию батареи для приложения, иначе Android
+          «усыпит» шлюз посреди рассылки.</li>
+      </ol>
+
+      <h2 style="margin-top:18px">Для подключения по кабелю</h2>
+      <ol class="muted" style="padding-left:18px;line-height:1.8">
+        <li>На телефоне: <b>Настройки → О телефоне</b> → семь раз нажать
+          <b>Номер сборки</b>, чтобы открыть режим разработчика.</li>
+        <li><b>Настройки → Для разработчиков</b> → включить
+          <b>Отладка по USB</b>.</li>
+        <li>Подключить кабель и на экране телефона нажать
+          <b>Разрешить отладку по USB</b>.</li>
+        <li>Здесь нажать <b>Подключить по USB</b>. IP больше не нужен.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const out = document.getElementById('check-result');
+const box = document.getElementById('discovery');
+const mode = document.getElementById('mode');
+const usbBlock = document.getElementById('usb-block');
+const wifiBlock = document.getElementById('wifi-block');
+const usbOut = document.getElementById('usb-result');
+
+function applyMode() {
+  const isUsb = mode.value === 'usb';
+  usbBlock.style.display = isUsb ? '' : 'none';
+  wifiBlock.style.display = isUsb ? 'none' : '';
+  document.getElementById('discover').style.display = isUsb ? 'none' : '';
+  box.innerHTML = '';
+}
+mode.addEventListener('change', applyMode);
+applyMode();
+
+function usbSay(text, ok) {
+  usbOut.textContent = text;
+  usbOut.style.color = ok === undefined ? '' : (ok ? '#15803d' : '#b91c1c');
+}
+
+document.getElementById('usb-connect').addEventListener('click', async function () {
+  usbSay('подключаюсь по кабелю…');
+  try {
+    const data = await (await fetch('{{ url_for("settings_usb_connect") }}',
+                                    {method: 'POST'})).json();
+    usbSay(data.note, data.ok);
+    if (data.ok) { setTimeout(function () { location.reload(); }, 1500); }
+  } catch (e) { usbSay('не удалось выполнить подключение', false); }
+});
+
+document.getElementById('usb-status').addEventListener('click', async function () {
+  usbSay('спрашиваю adb…');
+  try {
+    const data = await (await fetch('{{ url_for("settings_usb_status") }}',
+                                    {method: 'POST'})).json();
+    if (data.error) {
+      usbSay(data.error + (data.hint ? ' — ' + data.hint : ''), false);
+      return;
+    }
+    const devices = data.devices.length
+      ? data.devices.map(function (d) {
+          return (d.model || d.serial) + ' — ' + d.state;
+        }).join('; ')
+      : 'устройств нет';
+    const forwards = data.forwards.length
+      ? data.forwards.map(function (f) { return f[0] + '→' + f[1]; }).join(', ')
+      : 'нет';
+    usbSay('adb: ' + data.adb + ' · телефоны: ' + devices +
+           ' · пробросы: ' + forwards, data.forwarded);
+  } catch (e) { usbSay('adb не ответил', false); }
+});
+
+function say(text, ok) {
+  out.textContent = text;
+  out.style.color = ok === undefined ? '' : (ok ? '#15803d' : '#b91c1c');
+}
+
+document.getElementById('check').addEventListener('click', async function () {
+  say('проверяю…');
+  try {
+    const data = await (await fetch('{{ url_for("settings_health") }}', {method: 'POST'})).json();
+    say(data.note, data.ok);
+  } catch (e) { say('панель не отвечает', false); }
+});
+
+document.getElementById('discover').addEventListener('click', async function () {
+  const button = this;
+  button.disabled = true;
+  say('сканирую локальную сеть, это занимает 5–20 секунд…');
+  box.innerHTML = '';
+
+  try {
+    const data = await (await fetch('{{ url_for("settings_discover") }}', {method: 'POST'})).json();
+    render(data);
+    say('');
+  } catch (e) {
+    say('поиск не удался', false);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+function render(data) {
+  const where = data.scanned.map(function (s) {
+    return s.network + ' (' + s.interface + ')';
+  }).join(', ');
+
+  const found = data.candidates.filter(function (c) { return c.kind === 'gateway'; });
+  const maybe = data.candidates.filter(function (c) { return c.kind === 'maybe'; });
+  const other = data.candidates.filter(function (c) { return c.kind === 'other'; });
+
+  let html = '<h2 style="margin-top:18px">Результат поиска</h2>' +
+             '<p class="muted">Просканировано: ' + (where || 'нет сетей') +
+             ', порт ' + data.port + '</p>';
+
+  if (found.length) {
+    html += '<p class="muted">Опознан по ответу <span class="mono">/health</span>:</p>';
+    html += found.map(row).join('');
+  } else {
+    html += '<div class="flash warn">Шлюз не найден. Проверьте, что телефон в этой же ' +
+            'сети Wi-Fi (не на мобильном интернете), экран разблокирован, ' +
+            'а в приложении включён <b>Local Server</b>.</div>';
+  }
+
+  if (maybe.length) {
+    html += '<p class="muted" style="margin-top:14px">Отвечают, но требуют авторизацию — ' +
+            'сверьте адрес с экраном телефона, прежде чем выбирать:</p>';
+    html += maybe.map(row).join('');
+  }
+
+  if (other.length) {
+    html += '<p class="muted" style="margin-top:14px">Ещё ' + other.length +
+            ' устройств с открытым портом ' + data.port + ' — это чужая техника ' +
+            '(принтеры, камеры, панели), шлюзом они не являются: ' +
+            other.map(function (c) { return c.host; }).join(', ') + '</p>';
+  }
+
+  box.innerHTML = html;
+
+  box.querySelectorAll('.use').forEach(function (button) {
+    button.addEventListener('click', function () { use(button.dataset.host, data.port); });
+  });
+}
+
+function row(candidate) {
+  const label = candidate.kind === 'gateway' ? 'badge done' : 'badge paused';
+  const title = candidate.kind === 'gateway' ? 'это шлюз' : 'возможно';
+  return '<div class="preview-sample"><div class="row">' +
+         '<span class="mono">' + candidate.host + ':' + candidate.port + '</span>' +
+         '<span class="' + label + '">' + title + '</span>' +
+         '<span class="muted">' + candidate.note + '</span>' +
+         '<button type="button" class="btn small primary use" data-host="' +
+         candidate.host + '" style="margin-left:auto">Использовать</button>' +
+         '</div></div>';
+}
+
+async function use(host, port) {
+  say('сохраняю ' + host + ' и проверяю пароль…');
+  try {
+    const data = await (await fetch('{{ url_for("settings_use_host") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({host: host, port: port})
+    })).json();
+    say(data.note, data.ok);
+    if (data.ok) { setTimeout(function () { location.reload(); }, 1200); }
+  } catch (e) { say('не удалось сохранить адрес', false); }
+}
+</script>
+{% endblock %}

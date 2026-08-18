@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Стоп-лист</h1>
+<p class="muted">Номера отсюда никогда не получат сообщений: они исключаются
+  и при импорте базы, и непосредственно перед отправкой каждого SMS.</p>
+
+<div class="card">
+  <form method="post">
+    <label><span>Номера — по одному в строке или через запятую</span>
+      <textarea name="phones" placeholder="+79001234567&#10;8 900 765-43-21"></textarea></label>
+    <label><span>Причина</span>
+      <input type="text" name="reason" placeholder="Отписался по SMS «СТОП»"></label>
+    <button class="btn primary" type="submit">Добавить в стоп-лист</button>
+  </form>
+</div>
+
+<div class="card">
+  <table>
+    <thead><tr><th>Телефон</th><th>Причина</th><th>Добавлен</th><th></th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="mono">{{ r.phone }}</td>
+          <td>{{ r.reason }}</td>
+          <td class="muted">{{ r.created_at }}</td>
+          <td style="text-align:right">
+            <form method="post" action="{{ url_for('optout_remove') }}">
+              <input type="hidden" name="phone" value="{{ r.phone }}">
+              <button class="btn small" type="submit">Убрать</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="muted">Стоп-лист пуст</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

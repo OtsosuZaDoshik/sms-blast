@@ -1,0 +1,16 @@
+.venv/
+.venv-build/
+build/src/
+build/build/
+build/dist/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Никогда не коммитим: пароль шлюза и базы контактов
+*.db
+*.db-wal
+*.db-shm
+.env
+uploads/
+exports/
