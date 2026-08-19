@@ -92,7 +92,8 @@ Windows-раннере команды в `run:` выполняет PowerShell.
 ### Через терминал
 
 ```bash
-gh workflow run build-windows.yml --ref desktop
+
+
 ```
 
 ## Как следить за ходом

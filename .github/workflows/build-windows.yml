@@ -35,7 +35,7 @@ jobs:
           $src = "${env:BUILD}/src"
           if (Test-Path $src) { Remove-Item -Recurse -Force $src }
           New-Item -ItemType Directory -Path $src | Out-Null
-          Copy-Item "${env:PROJECT}/app.py" $src
+          Copy-Item "${env:PROJECT}/*.py" $src
           Copy-Item "${env:PROJECT}/smsblast"  $src -Recurse
           Copy-Item "${env:PROJECT}/templates" $src -Recurse
           Copy-Item "${env:PROJECT}/static"    $src -Recurse
