@@ -328,10 +328,7 @@ def campaign_action(campaign_id, action):
             # перевтыкание кабеля и перезагрузку телефона.
             if settings.get("connection_mode") == "usb":
                 try:
-                    usb.ensure_forward(
-                        int(settings.get("usb_local_port", 18080) or 18080),
-                        int(settings.get("gateway_port", 8080) or 8080),
-                    )
+                    usb_bring_up(settings)
                 except usb.UsbError as exc:
                     flash("USB: {}".format(exc.full()), "error")
                     return redirect(url_for("campaign", campaign_id=campaign_id))
@@ -458,6 +455,83 @@ def settings_use_host():
     return jsonify({"ok": ok, "note": note, "host": host})
 
 
+def wait_for_gateway(seconds=20):
+    """Ждёт, пока шлюз ответит. Сразу после запуска он недолго отдаёт 500."""
+    deadline = time.time() + seconds
+    note = ""
+    while time.time() < deadline:
+        ok, note = gw.from_settings(db.get_settings()).health()
+        if ok:
+            return True, note
+        time.sleep(1.5)
+    return False, note
+
+
+def usb_bring_up(settings):
+    """Полное поднятие связи по кабелю: проброс, запуск шлюза, проверка.
+
+    Смысл в том, чтобы человек не открывал приложение на телефоне вручную:
+    оно поднимается с компьютера, если установлено.
+    """
+    local_port = int(settings.get("usb_local_port", 18080) or 18080)
+    remote_port = int(settings.get("gateway_port", 8080) or 8080)
+
+    device = usb.ensure_forward(local_port, remote_port)
+    db.save_settings({"connection_mode": "usb"})
+
+    ok, note = gw.from_settings(db.get_settings()).health()
+    started = False
+    if not ok:
+        # Шлюз не отвечает — пробуем поднять его на телефоне сами.
+        usb.start_gateway()
+        started = True
+        ok, note = wait_for_gateway()
+
+    return device, ok, note, started
+
+
+@app.route("/settings/phone-setup", methods=["POST"])
+def settings_phone_setup():
+    """Готовит телефон одной кнопкой: разрешения, батарея, запуск шлюза."""
+    steps = []
+    try:
+        state = usb.phone_state()
+        if not state["device"]:
+            return jsonify({"ok": False,
+                            "note": "телефон по USB не найден — подключите кабель "
+                                    "и включите «Отладка по USB»"})
+        label = state["device"].get("model") or state["device"].get("serial")
+        steps.append("телефон: {}".format(label))
+
+        if not state["installed"]:
+            return jsonify({
+                "ok": False,
+                "steps": steps,
+                "note": "на телефоне нет приложения-шлюза. Установите SMS Gateway "
+                        "for Android со страницы релизов проекта, затем нажмите "
+                        "эту кнопку снова.",
+            })
+        steps.append("шлюз установлен, версия {}".format(state["version"] or "?"))
+
+        granted, failed = usb.grant_permissions()
+        if granted:
+            steps.append("выданы разрешения: {}".format(", ".join(granted)))
+        if failed:
+            steps.append("не удалось выдать: {}".format(", ".join(failed)))
+
+        if usb.allow_background():
+            steps.append("снято ограничение экономии батареи")
+
+        device, ok, note, started = usb_bring_up(db.get_settings())
+        if started:
+            steps.append("шлюз запущен с компьютера")
+        steps.append(note)
+        return jsonify({"ok": ok, "steps": steps, "note": note})
+
+    except usb.UsbError as exc:
+        return jsonify({"ok": False, "steps": steps, "note": exc.full()})
+
+
 @app.route("/settings/usb-status", methods=["POST"])
 def settings_usb_status():
     settings = db.get_settings()
@@ -472,19 +546,17 @@ def settings_usb_connect():
     remote_port = int(settings.get("gateway_port", 8080) or 8080)
 
     try:
-        device = usb.ensure_forward(local_port, remote_port)
+        device, ok, note, started = usb_bring_up(settings)
     except usb.UsbError as exc:
         return jsonify({"ok": False, "note": exc.full()})
 
-    db.save_settings({"connection_mode": "usb"})
-    ok, note = gw.from_settings(db.get_settings()).health()
-
     label = device.get("model") or device.get("serial")
+    prefix = "{}{}".format(label, ", шлюз запущен с компьютера" if started else "")
     return jsonify({
         "ok": ok,
         "device": label,
         "note": "{}: {} → порт {} телефона проброшен на 127.0.0.1:{}".format(
-            label, note, remote_port, local_port),
+            prefix, note, remote_port, local_port),
     })
 
 

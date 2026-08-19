@@ -32,7 +32,30 @@ for a in "$@"; do
   if [ "$a" = "-s" ]; then skip=1; continue; fi
   args+=("$a")
 done
+# Журнал вызовов — тесты проверяют, что именно было отправлено телефону.
+echo "$*" >> "$ADB_FAKE_CALLS"
+
 case "${args[0]}" in
+  shell)
+    case "${args[1]} ${args[2]}" in
+      "pm list")
+        [ "$mode" = "nogateway" ] || echo "package:me.capcom.smsgateway"
+        exit 0 ;;
+      "pm grant")
+        [ "$mode" = "nogrant" ] && { echo "Operation not allowed" >&2; exit 1; }
+        exit 0 ;;
+      "dumpsys package")
+        echo "    versionName=1.70.4"
+        echo "    android.permission.SEND_SMS: granted=true"
+        echo "    android.permission.READ_PHONE_STATE: granted=true"
+        exit 0 ;;
+      "dumpsys deviceidle")
+        [ "${args[3]}" = "whitelist" ] && echo "user,me.capcom.smsgateway,10597"
+        exit 0 ;;
+      "am start"|"am broadcast")
+        echo "Broadcast completed: result=0"; exit 0 ;;
+      *) exit 0 ;;
+    esac ;;
   devices)
     echo "List of devices attached"
     case "$mode" in
@@ -57,6 +80,8 @@ esac
 os.chmod(os.path.join(FAKE, "adb"), stat.S_IRWXU)
 os.environ["ADB_FAKE_STATE"] = STATE
 os.environ["ADB_FAKE_FORWARDS"] = FORWARDS
+CALLS = os.path.join(TMP, "calls")
+os.environ["ADB_FAKE_CALLS"] = CALLS
 os.environ["PATH"] = FAKE + os.pathsep + os.environ["PATH"]
 
 from smsblast import config  # noqa: E402
@@ -321,6 +346,45 @@ try:
     check("мёртвый проброс даёт ошибку", False)
 except gw.GatewayError as e:
     check("в режиме USB подсказка про кабель", "проброс" in e.hint and "USB" in e.hint, e.hint)
+
+print("\n=== Запуск шлюза на телефоне с компьютера ===")
+set_mode("ready")
+open(CALLS, "w").close()
+check("шлюз опознан как установленный", usb.is_gateway_installed())
+check("версия прочитана", usb.gateway_version() == "1.70.4", usb.gateway_version())
+
+usb.start_gateway()
+calls = open(CALLS, encoding="utf-8").read()
+check("приложение выводится на передний план",
+      "am start -n me.capcom.smsgateway/.MainActivity" in calls, calls)
+check("отправляется незащищённое «загрузочное» событие",
+      "QUICKBOOT_POWERON" in calls and ".receivers.BootReceiver" in calls, calls)
+check("настоящее BOOT_COMPLETED не шлём (система его запрещает)",
+      "android.intent.action.BOOT_COMPLETED" not in calls)
+
+granted, failed = usb.grant_permissions()
+check("выдаются оба разрешения", granted == ["SEND_SMS", "READ_PHONE_STATE"],
+      (granted, failed))
+check("снимается ограничение батареи", usb.allow_background())
+
+state = usb.phone_state()
+check("состояние телефона собрано",
+      state["installed"] and state["version"] == "1.70.4"
+      and "SEND_SMS" in state["permissions"] and state["battery_exempt"], state)
+
+set_mode("nogateway")
+try:
+    usb.start_gateway()
+    check("без приложения — ошибка", False, "исключения не было")
+except usb.UsbError as exc:
+    check("без приложения объясняет, что ставить",
+          "не установлено" in str(exc) and "SMS Gateway" in exc.hint, exc.full())
+
+set_mode("nogrant")
+granted, failed = usb.grant_permissions()
+check("неудачная выдача разрешений не роняет, а сообщается",
+      granted == [] and len(failed) == 2, (granted, failed))
+set_mode("ready")
 
 print("\n=== Маршруты панели ===")
 webapp.app.config["TESTING"] = True

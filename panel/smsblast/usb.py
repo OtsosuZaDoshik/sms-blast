@@ -45,6 +45,24 @@ def install_hint():
 INSTALL_HINT = install_hint()
 
 
+# --- управление приложением-шлюзом на телефоне -------------------------------
+
+GATEWAY_PACKAGE = "me.capcom.smsgateway"
+GATEWAY_ACTIVITY = GATEWAY_PACKAGE + "/.MainActivity"
+GATEWAY_BOOT_RECEIVER = GATEWAY_PACKAGE + "/.receivers.BootReceiver"
+
+# BootReceiver приложения принимает несколько «загрузочных» событий. Настоящее
+# BOOT_COMPLETED защищено системой и с компьютера не отправляется, а вот
+# QUICKBOOT_POWERON — обычное действие, и его принять он тоже согласен. Это
+# позволяет поднять шлюз, не прикасаясь к телефону.
+WAKE_ACTION = "android.intent.action.QUICKBOOT_POWERON"
+
+GATEWAY_PERMISSIONS = [
+    "android.permission.SEND_SMS",
+    "android.permission.READ_PHONE_STATE",
+]
+
+
 class UsbError(Exception):
     def __init__(self, message, hint=""):
         super().__init__(message)
@@ -195,4 +213,98 @@ def status(local_port=None):
 
     if local_port:
         data["forwarded"] = any(l == int(local_port) for l, _ in data["forwards"])
+    return data
+
+
+def is_gateway_installed(adb=None):
+    adb = adb or find_adb()
+    if not adb:
+        return False
+    result = _run([adb, "shell", "pm", "list", "packages", GATEWAY_PACKAGE])
+    return GATEWAY_PACKAGE in (result.stdout or "")
+
+
+def gateway_version(adb=None):
+    adb = adb or find_adb()
+    if not adb:
+        return ""
+    result = _run([adb, "shell", "dumpsys", "package", GATEWAY_PACKAGE])
+    match = re.search(r"versionName=(\S+)", result.stdout or "")
+    return match.group(1) if match else ""
+
+
+def start_gateway(adb=None):
+    """Поднимает приложение-шлюз и его локальный сервер с компьютера.
+
+    Сначала выводим приложение на передний план: Android запрещает запускать
+    службы переднего плана из фона, а на переднем плане это разрешено. Затем
+    отправляем «загрузочное» событие, по которому приложение поднимает все
+    включённые в нём модули, включая локальный сервер.
+    """
+    adb = adb or find_adb()
+    if not adb:
+        raise UsbError("adb не установлен", hint=install_hint())
+    if not is_gateway_installed(adb):
+        raise UsbError(
+            "приложение-шлюз не установлено на телефоне",
+            hint="установите SMS Gateway for Android со страницы релизов "
+                 "github.com/capcom6/android-sms-gateway",
+        )
+
+    _run([adb, "shell", "am", "start", "-n", GATEWAY_ACTIVITY])
+    _run([adb, "shell", "am", "broadcast", "-a", WAKE_ACTION,
+          "-n", GATEWAY_BOOT_RECEIVER])
+
+
+def grant_permissions(adb=None):
+    """Выдаёт разрешения на отправку SMS без ручных нажатий на телефоне."""
+    adb = adb or find_adb()
+    if not adb:
+        raise UsbError("adb не установлен", hint=install_hint())
+
+    granted, failed = [], []
+    for permission in GATEWAY_PERMISSIONS:
+        result = _run([adb, "shell", "pm", "grant", GATEWAY_PACKAGE, permission])
+        if result.returncode == 0:
+            granted.append(permission.rsplit(".", 1)[-1])
+        else:
+            failed.append(permission.rsplit(".", 1)[-1])
+    return granted, failed
+
+
+def allow_background(adb=None):
+    """Исключает шлюз из экономии батареи, иначе Android усыпит его."""
+    adb = adb or find_adb()
+    if not adb:
+        return False
+    result = _run([adb, "shell", "dumpsys", "deviceidle", "whitelist",
+                   "+" + GATEWAY_PACKAGE])
+    return result.returncode == 0
+
+
+def phone_state(adb=None):
+    """Что сейчас с телефоном и приложением — для интерфейса."""
+    adb = adb or find_adb()
+    data = {"adb": adb or "", "device": None, "installed": False,
+            "version": "", "permissions": [], "battery_exempt": False}
+    if not adb:
+        return data
+
+    try:
+        data["device"] = pick_device(adb)
+    except UsbError:
+        return data
+
+    data["installed"] = is_gateway_installed(adb)
+    if not data["installed"]:
+        return data
+
+    data["version"] = gateway_version(adb)
+    dump = (_run([adb, "shell", "dumpsys", "package", GATEWAY_PACKAGE]).stdout or "")
+    for permission in GATEWAY_PERMISSIONS:
+        if re.search(re.escape(permission) + r": granted=true", dump):
+            data["permissions"].append(permission.rsplit(".", 1)[-1])
+
+    idle = (_run([adb, "shell", "dumpsys", "deviceidle", "whitelist"]).stdout or "")
+    data["battery_exempt"] = GATEWAY_PACKAGE in idle
     return data

@@ -27,8 +27,12 @@
                  value="{{ settings.usb_local_port }}" min="1024" max="65535"></label>
         <div class="row">
           <button class="btn primary" type="button" id="usb-connect">Подключить по USB</button>
+          <button class="btn" type="button" id="phone-setup">Подготовить телефон</button>
           <button class="btn" type="button" id="usb-status">Что видит adb</button>
         </div>
+        <p class="muted">«Подготовить телефон» выдаёт разрешение на отправку SMS,
+          снимает ограничение экономии батареи и запускает шлюз — брать телефон
+          в руки не нужно.</p>
         <div id="usb-result" class="muted" style="margin-top:10px"></div>
       </div>
 
@@ -109,15 +113,20 @@
       </ol>
 
       <h2 style="margin-top:18px">Для подключения по кабелю</h2>
+      <p class="muted">Руками на телефоне делается только это, и только один раз:</p>
       <ol class="muted" style="padding-left:18px;line-height:1.8">
-        <li>На телефоне: <b>Настройки → О телефоне</b> → семь раз нажать
-          <b>Номер сборки</b>, чтобы открыть режим разработчика.</li>
-        <li><b>Настройки → Для разработчиков</b> → включить
-          <b>Отладка по USB</b>.</li>
-        <li>Подключить кабель и на экране телефона нажать
+        <li><b>Настройки → О телефоне</b> → семь раз нажать <b>Номер сборки</b>,
+          чтобы открыть режим разработчика.</li>
+        <li><b>Настройки → Для разработчиков</b> → включить <b>Отладка по USB</b>.</li>
+        <li>Подключить кабель и нажать на экране телефона
           <b>Разрешить отладку по USB</b>.</li>
-        <li>Здесь нажать <b>Подключить по USB</b>. IP больше не нужен.</li>
+        <li>В приложении-шлюзе один раз включить <b>Local Server</b> и переписать
+          отсюда логин с паролем — состояние запоминается, дальше панель
+          поднимает шлюз сама.</li>
       </ol>
+      <p class="muted">Дальше — кнопка <b>Подготовить телефон</b> слева:
+        разрешения, батарея и запуск шлюза делаются с компьютера. Перед каждой
+        рассылкой панель поднимает шлюз сама, если он не запущен.</p>
     </div>
   </div>
 </div>
@@ -156,6 +165,24 @@ document.getElementById('usb-connect').addEventListener('click', async function 
     usbSay(data.note, data.ok);
     if (data.ok) { setTimeout(function () { location.reload(); }, 1500); }
   } catch (e) { usbSay('не удалось выполнить подключение', false); }
+});
+
+document.getElementById('phone-setup').addEventListener('click', async function () {
+  const button = this;
+  button.disabled = true;
+  usbSay('готовлю телефон: разрешения, батарея, запуск шлюза…');
+  try {
+    const data = await (await fetch('{{ url_for("settings_phone_setup") }}',
+                                    {method: 'POST'})).json();
+    const steps = (data.steps || []).map(function (s) { return '• ' + s; }).join('\n');
+    usbSay(steps || data.note, data.ok);
+    usbOut.style.whiteSpace = 'pre-line';
+    if (data.ok) { setTimeout(function () { location.reload(); }, 2000); }
+  } catch (e) {
+    usbSay('не удалось подготовить телефон', false);
+  } finally {
+    button.disabled = false;
+  }
 });
 
 document.getElementById('usb-status').addEventListener('click', async function () {
