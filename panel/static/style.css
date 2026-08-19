@@ -1,137 +1,242 @@
+/* Десктопное приложение: боковая навигация, системная типографика,
+   поддержка тёмной темы macOS. Никакой «страницы в браузере». */
+
 :root {
-  --bg: #f5f6f8;
-  --card: #ffffff;
+  --bg: #f2f3f5;
+  --panel: #ffffff;
+  --side: #ebedf0;
   --ink: #1c1f24;
   --muted: #6b7280;
-  --line: #e3e6ea;
+  --line: #dfe2e6;
+  --line-soft: #eaecef;
   --accent: #2563eb;
+  --accent-ink: #ffffff;
   --ok: #15803d;
+  --ok-bg: #eaf7ef;
   --warn: #b45309;
+  --warn-bg: #fdf5e6;
   --err: #b91c1c;
-  --radius: 10px;
+  --err-bg: #fdeeee;
+  --hover: #f5f6f8;
+  --radius: 8px;
+  --sidebar-w: 216px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1d21;
+    --panel: #24262b;
+    --side: #17191c;
+    --ink: #e7e9ec;
+    --muted: #9aa1ab;
+    --line: #34373d;
+    --line-soft: #2c2f34;
+    --accent: #4b82f6;
+    --ok: #57c98a;
+    --ok-bg: #1d2f26;
+    --warn: #e0a95c;
+    --warn-bg: #2f2820;
+    --err: #f08a86;
+    --err-bg: #332223;
+    --hover: #2b2e33;
+  }
 }
 
 * { box-sizing: border-box; }
+
+html, body { height: 100%; }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font: 13.5px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter",
+        Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+/* --- каркас окна --------------------------------------------------------- */
 
-header {
-  background: var(--card);
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 24px;
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+  background: var(--side);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 12px 12px;
+  user-select: none;
 }
 
-.nav { display: flex; align-items: center; gap: 20px; height: 58px; }
-.brand { font-weight: 650; text-decoration: none; color: var(--ink); font-size: 17px; }
-nav { margin-left: auto; display: flex; align-items: center; gap: 18px; }
-nav a { color: var(--muted); text-decoration: none; }
-nav a:hover { color: var(--ink); }
-nav a.btn { color: #fff; }
+.sidebar-head { display: flex; align-items: center; gap: 9px; padding: 4px 8px 16px; }
+.logo {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 700; letter-spacing: .3px;
+  display: flex; align-items: center; justify-content: center;
+}
+.app-name { font-weight: 600; font-size: 14px; }
 
-h1 { font-size: 22px; margin: 0 0 18px; }
-h2 { font-size: 17px; margin: 0 0 12px; }
+.side-nav { display: flex; flex-direction: column; gap: 1px; }
+.side-nav a {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: 6px;
+  color: var(--ink); text-decoration: none; font-size: 13.5px;
+}
+.side-nav a:hover { background: var(--hover); }
+.side-nav a.on { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.side-nav .ico { width: 15px; text-align: center; opacity: .75; font-size: 12px; }
+.side-nav a.on .ico { opacity: 1; }
+
+.sidebar-foot { margin-top: auto; }
+.hint { color: var(--muted); font-size: 11.5px; line-height: 1.5; margin: 12px 2px 0; }
+
+.content { flex: 1; overflow-y: auto; }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 26px 34px 44px; }
+
+/* --- типографика --------------------------------------------------------- */
+
+h1 { font-size: 20px; font-weight: 600; margin: 0 0 18px; letter-spacing: -.2px; }
+h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+
+.muted { color: var(--muted); font-size: 12.5px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+
+/* --- карточки и сетка ---------------------------------------------------- */
 
 .card {
-  background: var(--card);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 20px;
-  margin-bottom: 18px;
+  padding: 18px;
+  margin-bottom: 14px;
 }
 
-.grid { display: grid; gap: 18px; }
+.grid { display: grid; gap: 14px; }
 .grid.cols-2 { grid-template-columns: 1fr 1fr; }
 .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 800px) { .grid.cols-2, .grid.cols-4 { grid-template-columns: 1fr; } }
+@media (max-width: 880px) { .grid.cols-2, .grid.cols-4 { grid-template-columns: 1fr; } }
 
-.stat { text-align: center; }
-.stat .num { font-size: 26px; font-weight: 650; }
-.stat .lbl { color: var(--muted); font-size: 13px; }
+.stat { text-align: left; }
+.stat .num { font-size: 24px; font-weight: 600; letter-spacing: -.4px; }
+.stat .lbl { color: var(--muted); font-size: 12px; }
 
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
-th { color: var(--muted); font-weight: 550; font-size: 13px; }
-tbody tr:hover { background: #fafbfc; }
+/* --- таблицы ------------------------------------------------------------- */
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+th {
+  color: var(--muted); font-weight: 500; font-size: 11.5px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--hover); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
-label { display: block; margin-bottom: 14px; }
-label > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+/* --- формы --------------------------------------------------------------- */
+
+label { display: block; margin-bottom: 12px; }
+label > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
 input[type=text], input[type=number], input[type=password], input[type=file],
 textarea, select {
   width: 100%;
-  padding: 9px 11px;
+  padding: 7px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   font: inherit;
-  background: #fff;
+  background: var(--panel);
+  color: var(--ink);
 }
-textarea { min-height: 120px; resize: vertical; }
-input:focus, textarea:focus, select:focus { outline: 2px solid #bfdbfe; border-color: var(--accent); }
+textarea { min-height: 104px; resize: vertical; line-height: 1.5; }
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
 label.inline { display: flex; align-items: center; gap: 8px; }
-label.inline > span { margin: 0; color: var(--ink); font-size: 14px; }
-input[type=checkbox] { width: auto; }
+label.inline > span { margin: 0; color: var(--ink); font-size: 13px; }
+input[type=checkbox] { width: auto; accent-color: var(--accent); }
+
+/* --- кнопки -------------------------------------------------------------- */
 
 .btn {
   display: inline-block;
-  padding: 9px 16px;
-  border-radius: 8px;
+  padding: 6px 13px;
+  border-radius: 6px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--panel);
   color: var(--ink);
   font: inherit;
+  font-size: 13px;
   cursor: pointer;
   text-decoration: none;
+  text-align: center;
 }
-.btn:hover { background: #f3f4f6; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { background: #1d4ed8; }
-.btn.danger { color: var(--err); border-color: #fecaca; }
-.btn.small { padding: 5px 10px; font-size: 13px; }
-.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.btn:hover { background: var(--hover); }
+.btn:active { transform: translateY(0.5px); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 35%, transparent); }
+.btn.danger:hover { background: var(--err-bg); }
+.btn.small { padding: 3px 9px; font-size: 12px; }
+.btn.block { display: block; width: 100%; padding: 8px 13px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-.flash { padding: 11px 14px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
-.flash.ok { background: #ecfdf5; color: var(--ok); }
-.flash.error { background: #fef2f2; color: var(--err); }
-.flash.warn { background: #fffbeb; color: var(--warn); }
-.flashes { margin-bottom: 18px; }
+/* --- уведомления --------------------------------------------------------- */
+
+.flash {
+  padding: 9px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 12.5px;
+  border: 1px solid transparent;
+}
+.flash.ok    { background: var(--ok-bg);   color: var(--ok);   border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+.flash.error { background: var(--err-bg);  color: var(--err);  border-color: color-mix(in srgb, var(--err) 25%, transparent); }
+.flash.warn  { background: var(--warn-bg); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+.flashes { margin-bottom: 16px; }
 
 .badge {
-  display: inline-block; padding: 2px 9px; border-radius: 999px;
-  font-size: 12px; background: #eef2f7; color: var(--muted);
+  display: inline-block; padding: 1px 8px; border-radius: 5px;
+  font-size: 11.5px; font-weight: 500;
+  background: var(--hover); color: var(--muted);
 }
-.badge.running   { background: #dbeafe; color: #1d4ed8; }
-.badge.done      { background: #ecfdf5; color: var(--ok); }
-.badge.delivered { background: #ecfdf5; color: var(--ok); }
-.badge.sent      { background: #eff6ff; color: #1d4ed8; }
-.badge.failed    { background: #fef2f2; color: var(--err); }
-.badge.paused    { background: #fffbeb; color: var(--warn); }
-.badge.stopped   { background: #f3f4f6; color: var(--muted); }
-.badge.queued    { background: #f3f4f6; color: var(--muted); }
-.badge.skipped   { background: #f3f4f6; color: var(--muted); }
+.badge.running   { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.badge.done      { background: var(--ok-bg);  color: var(--ok); }
+.badge.delivered { background: var(--ok-bg);  color: var(--ok); }
+.badge.sent      { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.badge.failed    { background: var(--err-bg); color: var(--err); }
+.badge.paused    { background: var(--warn-bg); color: var(--warn); }
+.badge.stopped, .badge.queued, .badge.skipped { background: var(--hover); color: var(--muted); }
 
-.muted { color: var(--muted); font-size: 13px; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+/* --- прогресс и предпросмотр --------------------------------------------- */
 
 .progress {
-  height: 10px; background: #eef0f3; border-radius: 999px; overflow: hidden;
-  display: flex; margin: 6px 0 12px;
+  height: 6px; background: var(--line-soft); border-radius: 999px;
+  overflow: hidden; display: flex; margin: 4px 0 14px;
 }
-.progress i { display: block; height: 100%; }
+.progress i { display: block; height: 100%; transition: width .3s ease; }
 .progress .p-sent { background: var(--accent); }
 .progress .p-delivered { background: var(--ok); }
 .progress .p-failed { background: var(--err); }
 
 .preview-sample {
-  background: #f8fafc; border: 1px solid var(--line);
-  border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+  background: var(--bg); border: 1px solid var(--line-soft);
+  border-radius: 6px; padding: 9px 11px; margin-bottom: 7px; font-size: 13px;
 }
-.preview-sample .p { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.preview-sample .p { font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
 
-footer { padding: 24px 20px 40px; }
+/* --- опасная зона -------------------------------------------------------- */
+
+.danger-zone { border-color: color-mix(in srgb, var(--err) 32%, transparent); }
+.danger-zone h2 { color: var(--err); }
+
+/* --- скроллбар в стиле системы ------------------------------------------- */
+
+.content::-webkit-scrollbar { width: 9px; }
+.content::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+  border-radius: 999px;
+}
+.content::-webkit-scrollbar-thumb:hover { background: var(--muted); }

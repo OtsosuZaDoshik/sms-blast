@@ -14,8 +14,9 @@ done
 rm -rf panel build
 mkdir -p panel build
 
-cp "$P/app.py" "$P/requirements.txt" "$P/run.sh" "$P/.env.example" "$P/.gitignore" "$P/README.md" panel/
-cp -R "$P/smsblast" "$P/templates" "$P/static" panel/
+cp "$P/app.py" "$P/desktop.py" "$P/requirements.txt" "$P/run.sh" \
+   "$P/.env.example" "$P/.gitignore" "$P/README.md" panel/
+cp -R "$P/smsblast" "$P/templates" "$P/static" "$P/tests" panel/
 cp "$B/launcher.py" "$B/smsblast.spec" "$B/build.sh" "$B/build-windows.bat" "$B/README.md" "$B/.gitignore" build/
 
 find panel build -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true

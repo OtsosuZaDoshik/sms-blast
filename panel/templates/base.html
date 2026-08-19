@@ -3,42 +3,57 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Рассылка SMS{% endblock %}</title>
+  <title>{% block title %}SMS-рассылка{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<header>
-  <div class="wrap nav">
-    <a class="brand" href="{{ url_for('index') }}">SMS-рассылка</a>
-    <nav>
-      <a href="{{ url_for('index') }}">Кампании</a>
-      <a href="{{ url_for('contacts') }}">Контакты</a>
-      <a href="{{ url_for('optout') }}">Стоп-лист</a>
-      <a href="{{ url_for('settings_page') }}">Настройки</a>
-      <a class="btn primary" href="{{ url_for('campaign_new') }}">Новая рассылка</a>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <span class="logo">SMS</span>
+      <span class="app-name">Рассылка</span>
+    </div>
+
+    <nav class="side-nav">
+      <a href="{{ url_for('index') }}"
+         class="{% if request.endpoint in ('index', 'campaign', 'campaign_new') %}on{% endif %}">
+        <span class="ico">◉</span> Кампании</a>
+      <a href="{{ url_for('contacts') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('contacts') %}on{% endif %}">
+        <span class="ico">☰</span> Контакты</a>
+      <a href="{{ url_for('optout') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('optout') %}on{% endif %}">
+        <span class="ico">⊘</span> Стоп-лист</a>
+      <a href="{{ url_for('settings_page') }}"
+         class="{% if request.endpoint and request.endpoint.startswith('settings') %}on{% endif %}">
+        <span class="ico">⚙</span> Настройки</a>
     </nav>
-  </div>
-</header>
 
-<main class="wrap">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="flashes">
-        {% for category, text in messages %}
-          <div class="flash {{ category }}">{{ text }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
+    <div class="sidebar-foot">
+      <a class="btn primary block" href="{{ url_for('campaign_new') }}">Новая рассылка</a>
+      <p class="hint">Отправка идёт с SIM-карты вашего телефона. Соблюдайте
+        согласие получателей и разумный темп.</p>
+    </div>
+  </aside>
 
-  {% block content %}{% endblock %}
-</main>
+  <main class="content">
+    <div class="wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flashes">
+            {% for category, text in messages %}
+              <div class="flash {{ category }}">{{ text }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
 
-<footer class="wrap muted">
-  Отправка идёт с SIM-карты вашего телефона. Соблюдайте согласие получателей
-  (ст.&nbsp;18 ФЗ «О рекламе») и не превышайте разумный темп — иначе оператор
-  может заблокировать номер.
-</footer>
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+</div>
 {% block scripts %}{% endblock %}
 </body>
 </html>

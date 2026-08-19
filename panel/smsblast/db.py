@@ -198,6 +198,19 @@ def delete_contact(contact_id):
         conn.execute("DELETE FROM contacts WHERE id = ?", (contact_id,))
 
 
+def delete_all_contacts():
+    """Очищает базу контактов и возвращает число удалённых.
+
+    Стоп-лист и история кампаний намеренно не трогаются: отписавшиеся должны
+    пережить любую перезагрузку базы, а отчёты по отправленным сообщениям
+    хранят телефон и текст отдельно от контакта.
+    """
+    with tx() as conn:
+        removed = conn.execute("SELECT COUNT(*) AS n FROM contacts").fetchone()["n"]
+        conn.execute("DELETE FROM contacts")
+        return removed
+
+
 def contact_fields(row):
     """Плоский словарь полей контакта для подстановки в шаблон."""
     data = json.loads(row["fields_json"] or "{}")

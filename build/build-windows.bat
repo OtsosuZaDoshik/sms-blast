@@ -37,6 +37,24 @@ del /s /q src\*.db src\*.db-wal src\*.db-shm src\.env >nul 2>&1
 for /d /r src %%d in (__pycache__) do @if exist "%%d" rmdir /s /q "%%d"
 
 :build
+rem PyInstaller builds for the architecture of the Python running it.
+rem On a Windows-on-ARM VM (e.g. on an Apple Silicon Mac) native ARM64 Python
+rem produces an ARM64 exe that will NOT run on ordinary x64 Windows PCs.
+for /f %%a in ('python -c "import platform;print(platform.machine())"') do set "PYARCH=%%a"
+echo Python architecture: %PYARCH%
+if /i "%PYARCH%"=="ARM64" (
+  echo.
+  echo ================================ WARNING ================================
+  echo  Python is ARM64, so the resulting exe will run ONLY on ARM Windows.
+  echo  Ordinary Windows PCs are x64 and will refuse to start it.
+  echo  To build for them: install the 64-bit x64 Python from python.org
+  echo  ^(Windows on ARM runs it through x64 emulation^) and run this again.
+  echo =========================================================================
+  echo.
+  choice /c YN /m "Continue anyway"
+  if errorlevel 2 exit /b 1
+)
+
 if not exist ".venv-build\Scripts\pyinstaller.exe" (
   echo Preparing build environment ...
   python -m venv .venv-build || (echo Python 3 is required in PATH & exit /b 1)

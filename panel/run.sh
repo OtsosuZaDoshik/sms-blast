@@ -1,5 +1,6 @@
 #!/bin/bash
-# Запуск панели рассылки.
+# Запуск приложения в нативном окне.
+# Нужен веб-режим в браузере — запустите: .venv/bin/python app.py
 set -e
 cd "$(dirname "$0")"
 
@@ -10,4 +11,4 @@ if [ ! -d .venv ]; then
   .venv/bin/pip install --quiet -r requirements.txt
 fi
 
-exec .venv/bin/python app.py
+exec .venv/bin/python desktop.py

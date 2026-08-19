@@ -37,11 +37,21 @@ def _read_csv(path):
         text = _decode(handle.read())
 
     sample = text[:8192]
+    first_line = sample.splitlines()[0] if sample.strip() else ""
+
     try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
-        delimiter = dialect.delimiter
+        delimiter = csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
     except csv.Error:
-        delimiter = ";" if sample.count(";") > sample.count(",") else ","
+        delimiter = None
+
+    # Sniffer ошибается, когда внутри значений есть символ другого разделителя
+    # (например JSON с запятыми в файле с «;»). Проверяем результат: настоящий
+    # разделитель обязан разрезать шапку больше чем на одну колонку.
+    if not delimiter or len(next(csv.reader([first_line], delimiter=delimiter))) < 2:
+        counts = {d: len(next(csv.reader([first_line], delimiter=d)))
+                  for d in (";", ",", "\t", "|")}
+        best = max(counts, key=lambda d: counts[d])
+        delimiter = best if counts[best] > 1 else ","
 
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
     rows = [r for r in reader if any(str(c).strip() for c in r)]

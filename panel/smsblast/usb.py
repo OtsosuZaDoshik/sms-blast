@@ -5,14 +5,22 @@
 127.0.0.1 ноутбука: адрес всегда один и тот же, Wi-Fi не нужен, телефон может
 сидеть на мобильном интернете и попутно заряжается.
 
-Требуется: adb на Mac и включённая «Отладка по USB» на телефоне.
+Требуется: adb на компьютере и включённая «Отладка по USB» на телефоне.
 """
 
 import os
 import re
 import subprocess
 
-ADB_CANDIDATES = [
+WINDOWS_CANDIDATES = [
+    r"C:\platform-tools\adb.exe",
+    r"C:\Program Files\Android\platform-tools\adb.exe",
+    os.path.expandvars(r"%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe"),
+    os.path.expandvars(r"%USERPROFILE%\scoop\apps\adb\current\adb.exe"),
+    r"C:\ProgramData\chocolatey\bin\adb.exe",
+]
+
+UNIX_CANDIDATES = [
     "/opt/homebrew/bin/adb",
     "/usr/local/bin/adb",
     os.path.expanduser("~/Library/Android/sdk/platform-tools/adb"),
@@ -20,7 +28,21 @@ ADB_CANDIDATES = [
     "/Applications/Android Studio.app/Contents/plugins/android/resources/platform-tools/adb",
 ]
 
-INSTALL_HINT = "установите его командой: brew install --cask android-platform-tools"
+
+def adb_candidates():
+    """Типовые места установки adb — свои на каждой ОС."""
+    return WINDOWS_CANDIDATES if os.name == "nt" else UNIX_CANDIDATES
+
+
+def install_hint():
+    if os.name == "nt":
+        return ("скачайте Android Platform Tools с developer.android.com/tools/"
+                "releases/platform-tools, распакуйте и добавьте папку с adb.exe "
+                "в переменную PATH")
+    return "установите его командой: brew install --cask android-platform-tools"
+
+
+INSTALL_HINT = install_hint()
 
 
 class UsbError(Exception):
@@ -39,7 +61,7 @@ def find_adb():
     path = which("adb")
     if path:
         return path
-    for candidate in ADB_CANDIDATES:
+    for candidate in adb_candidates():
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
     return None
@@ -52,7 +74,7 @@ def _run(args, timeout=20):
         raise UsbError("adb не ответил за {} c".format(timeout),
                        hint="отключите и снова подключите кабель")
     except OSError as exc:
-        raise UsbError("не удалось запустить adb: {}".format(exc), hint=INSTALL_HINT)
+        raise UsbError("не удалось запустить adb: {}".format(exc), hint=install_hint())
     return result
 
 
@@ -60,7 +82,7 @@ def devices(adb=None):
     """Список устройств: [{'serial', 'state', 'model'}]."""
     adb = adb or find_adb()
     if not adb:
-        raise UsbError("adb не установлен", hint=INSTALL_HINT)
+        raise UsbError("adb не установлен", hint=install_hint())
 
     result = _run([adb, "devices", "-l"])
     found = []
@@ -101,7 +123,7 @@ def pick_device(adb=None):
         )
     if len(ready) > 1:
         raise UsbError(
-            "к Mac подключено несколько устройств: {}".format(
+            "подключено несколько устройств: {}".format(
                 ", ".join(d["serial"] for d in ready)),
             hint="оставьте подключённым только телефон с приложением-шлюзом",
         )
@@ -126,7 +148,7 @@ def ensure_forward(local_port, remote_port=8080, serial=None):
     """Ставит проброс порта. Возвращает описание подключённого телефона."""
     adb = find_adb()
     if not adb:
-        raise UsbError("adb не установлен", hint=INSTALL_HINT)
+        raise UsbError("adb не установлен", hint=install_hint())
 
     device = pick_device(adb)
     args = [adb]
@@ -160,7 +182,7 @@ def status(local_port=None):
             "forwarded": False}
     if not adb:
         data["error"] = "adb не установлен"
-        data["hint"] = INSTALL_HINT
+        data["hint"] = install_hint()
         return data
 
     try:

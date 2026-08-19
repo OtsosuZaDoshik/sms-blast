@@ -14,7 +14,6 @@ import socket
 import sys
 import threading
 import time
-import webbrowser
 
 APP_NAME = "SMS-рассылка"
 PREFERRED_PORT = 5001
@@ -60,6 +59,11 @@ def free_port(preferred=PREFERRED_PORT, attempts=25):
 def main():
     storage = data_dir()
 
+    # В оконной сборке Windows нет stdout — без этого первый же print
+    # уронил бы приложение до появления окна.
+    import desktop
+    desktop.ensure_output(os.path.join(storage, "app.log"))
+
     # .env рядом с исполняемым файлом — необязательный, но пусть работает.
     env_path = os.path.join(exe_dir(), ".env")
     if os.path.isfile(env_path):
@@ -89,19 +93,18 @@ def main():
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
 
-    url = "http://127.0.0.1:{}".format(port)
-    print("{}: {}".format(APP_NAME, url))
+    print("{}: http://127.0.0.1:{}".format(APP_NAME, port))
     print("Данные: {}".format(storage))
     if port != PREFERRED_PORT:
         print("Порт {} занят, поднялись на {}".format(PREFERRED_PORT, port))
 
-    if os.environ.get("SMSBLAST_NO_BROWSER") != "1":
-        threading.Thread(
-            target=lambda: (time.sleep(1.2), webbrowser.open(url)),
-            daemon=True,
-        ).start()
+    if os.environ.get("SMSBLAST_NO_WINDOW") == "1":
+        # Режим проверки сборки: сервер без окна.
+        desktop.serve(port)
+        while True:
+            time.sleep(3600)
 
-    webapp.app.run(host="127.0.0.1", port=port, threaded=True, use_reloader=False)
+    return desktop.run(port)
 
 
 if __name__ == "__main__":

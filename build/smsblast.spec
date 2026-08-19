@@ -27,7 +27,14 @@ HIDDEN = [
     "smsblast.usb",
     "openpyxl",
     "dotenv",
+    "desktop",
+    "webview",
 ]
+
+if sys.platform == "darwin":
+    HIDDEN += ["webview.platforms.cocoa", "objc", "Foundation", "AppKit", "WebKit"]
+elif sys.platform.startswith("win"):
+    HIDDEN += ["webview.platforms.edgechromium", "clr", "System"]
 
 analysis = Analysis(
     ["launcher.py"],
@@ -57,7 +64,9 @@ if ONEFILE:
         debug=False,
         strip=False,
         upx=False,
-        console=True,
+        # Оконное приложение: чёрная консоль за окном не нужна. Вывод уходит
+        # в журнал — им занимается desktop.ensure_output().
+        console=False,
         disable_windowed_traceback=False,
     )
 else:

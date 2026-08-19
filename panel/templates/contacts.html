@@ -70,4 +70,21 @@
   {% endif %}
 </div>
 
+{% if total_all %}
+  <div class="card danger-zone">
+    <h2>Удалить все контакты</h2>
+    <p class="muted">Будут удалены <b>все {{ total_all }}</b> контактов, а не
+      только показанные на этой странице. Стоп-лист и отчёты по отправленным
+      кампаниям сохранятся. Перед удалением панель сама выгрузит базу в CSV,
+      чтобы её можно было вернуть импортом.</p>
+    <form method="post" action="{{ url_for('contacts_delete_all') }}"
+          onsubmit="return confirm('Удалить все {{ total_all }} контактов? Отменить будет нельзя.')">
+      <label><span>Введите <b>УДАЛИТЬ</b>, чтобы подтвердить</span>
+        <input type="text" name="confirm" placeholder="УДАЛИТЬ" required
+               autocomplete="off" style="max-width:240px"></label>
+      <button class="btn danger" type="submit">Удалить все контакты</button>
+    </form>
+  </div>
+{% endif %}
+
 {% endblock %}

@@ -56,6 +56,7 @@ def contacts():
         "contacts.html",
         contacts=rows,
         total=total,
+        total_all=db.count_contacts(),
         page=page,
         pages=max(1, -(-total // per_page)),
         search=search,
@@ -87,6 +88,42 @@ def contacts_delete(contact_id):
     db.delete_contact(contact_id)
     flash("Контакт удалён", "ok")
     return redirect(request.referrer or url_for("contacts"))
+
+
+@app.route("/contacts/delete-all", methods=["POST"])
+def contacts_delete_all():
+    """Полная очистка базы контактов — с подтверждением и резервной копией."""
+    if request.form.get("confirm", "").strip().upper() != "УДАЛИТЬ":
+        flash("Удаление отменено: подтверждение не совпало", "error")
+        return redirect(url_for("contacts"))
+
+    rows = db.list_contacts(limit=1000000)
+    if not rows:
+        flash("Контактов и так нет", "warn")
+        return redirect(url_for("contacts"))
+
+    # Операция необратима, поэтому сначала выгружаем базу на диск.
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    backup = os.path.join(config.EXPORT_DIR, "contacts-backup-{}.csv".format(stamp))
+    # Имя со временем до секунды: два удаления подряд не должны молча затирать
+    # предыдущую копию — иначе она перестаёт быть страховкой.
+    attempt = 2
+    while os.path.exists(backup):
+        backup = os.path.join(
+            config.EXPORT_DIR, "contacts-backup-{}-{}.csv".format(stamp, attempt)
+        )
+        attempt += 1
+    with open(backup, "w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle, delimiter=";")
+        writer.writerow(["телефон", "имя", "согласие", "источник", "поля"])
+        for row in rows:
+            writer.writerow([row["phone"], row["name"], row["consent"],
+                             row["source"], row["fields_json"]])
+
+    removed = db.delete_all_contacts()
+    flash("Удалено контактов: {}. Резервная копия: {}".format(removed, backup), "ok")
+    flash("Стоп-лист и отчёты по кампаниям сохранены", "warn")
+    return redirect(url_for("contacts"))
 
 
 @app.route("/contacts/import", methods=["GET", "POST"])

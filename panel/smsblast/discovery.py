@@ -11,9 +11,11 @@
 """
 
 import ipaddress
+import json
 import re
 import socket
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -24,12 +26,102 @@ MAX_SCAN_HOSTS = 1024
 
 
 def local_networks(max_hosts=MAX_SCAN_HOSTS):
-    """Подсети, к которым подключён Mac. VPN и loopback пропускаем."""
+    """Подсети, к которым подключён компьютер. VPN и loopback пропускаем."""
+    if sys.platform.startswith("win"):
+        return _windows_networks(max_hosts)
+    return _unix_networks(max_hosts)
+
+
+def _fit(address, prefix, max_hosts):
+    """Сеть по адресу и длине префикса, слишком широкую сужаем до /24."""
+    try:
+        network = ipaddress.ip_network("{}/{}".format(address, prefix), strict=False)
+    except ValueError:
+        return None
+    if network.num_addresses > max_hosts:
+        network = ipaddress.ip_network("{}/24".format(address), strict=False)
+    return network
+
+
+def _skip_address(address):
+    return address.startswith(("127.", "169.254."))
+
+
+# --- Windows ---------------------------------------------------------------
+
+PS_COMMAND = ("Get-NetIPAddress -AddressFamily IPv4 | "
+              "Select-Object IPAddress,PrefixLength,InterfaceAlias | ConvertTo-Json")
+
+
+def _windows_networks(max_hosts=MAX_SCAN_HOSTS):
+    """ipconfig переведён на язык системы, поэтому спрашиваем PowerShell:
+    Get-NetIPAddress отдаёт JSON и не зависит от локали."""
+    try:
+        output = subprocess.check_output(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", PS_COMMAND],
+            text=True, timeout=20,
+        )
+        networks = parse_powershell_networks(output, max_hosts)
+        if networks:
+            return networks
+    except (subprocess.SubprocessError, OSError, ValueError):
+        pass
+    return _fallback_networks(max_hosts)
+
+
+def parse_powershell_networks(text, max_hosts=MAX_SCAN_HOSTS):
+    """Разбор вывода Get-NetIPAddress. Вынесено отдельно ради тестов."""
+    data = json.loads(text)
+    if isinstance(data, dict):
+        data = [data]
+
+    networks = []
+    for item in data:
+        address = str(item.get("IPAddress", "")).strip()
+        if not address or _skip_address(address):
+            continue
+        alias = str(item.get("InterfaceAlias", "")).strip()
+        # Виртуальные адаптеры Hyper-V/WSL/VirtualBox — телефона там нет.
+        if re.search(r"(vEthernet|WSL|Loopback|VirtualBox|VMware|Hyper-V)", alias, re.I):
+            continue
+        try:
+            prefix = int(item.get("PrefixLength", 24))
+        except (TypeError, ValueError):
+            prefix = 24
+        network = _fit(address, prefix, max_hosts)
+        if network:
+            networks.append((alias or "сеть", address, network))
+    return networks
+
+
+def _fallback_networks(max_hosts=MAX_SCAN_HOSTS):
+    """Запасной вариант: узнаём свой адрес через сокет и берём /24."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))  # пакетов не шлёт, только выбирает маршрут
+        address = sock.getsockname()[0]
+    except OSError:
+        return []
+    finally:
+        sock.close()
+
+    if _skip_address(address):
+        return []
+    network = _fit(address, 24, max_hosts)
+    return [("сеть", address, network)] if network else []
+
+
+# --- macOS и Linux ---------------------------------------------------------
+
+def _unix_networks(max_hosts=MAX_SCAN_HOSTS):
     try:
         output = subprocess.check_output(["ifconfig"], text=True, timeout=10)
     except (subprocess.SubprocessError, OSError):
-        return []
+        return _fallback_networks(max_hosts)
+    return parse_ifconfig_networks(output, max_hosts)
 
+
+def parse_ifconfig_networks(output, max_hosts=MAX_SCAN_HOSTS):
     networks = []
     interface = ""
     for line in output.splitlines():
@@ -46,20 +138,13 @@ def local_networks(max_hosts=MAX_SCAN_HOSTS):
             continue
 
         address, netmask_hex = match.group(1), match.group(2)
-        if address.startswith(("127.", "169.254.")):
+        if _skip_address(address):
             continue
 
         prefix = bin(int(netmask_hex, 16)).count("1")
-        try:
-            network = ipaddress.ip_network("{}/{}".format(address, prefix), strict=False)
-        except ValueError:
-            continue
-
-        # Слишком широкую сеть не перебираем — сужаем до /24 вокруг себя.
-        if network.num_addresses > max_hosts:
-            network = ipaddress.ip_network("{}/24".format(address), strict=False)
-
-        networks.append((interface, address, network))
+        network = _fit(address, prefix, max_hosts)
+        if network:
+            networks.append((interface, address, network))
 
     return networks
 

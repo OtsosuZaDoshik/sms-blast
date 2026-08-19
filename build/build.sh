@@ -22,7 +22,7 @@ fi
 echo "Копирую исходники из «$PROJECT»…"
 rm -rf src build dist
 mkdir -p src
-cp "$PROJECT/app.py" src/
+cp "$PROJECT/app.py" "$PROJECT/desktop.py" src/
 cp -R "$PROJECT/smsblast" src/
 cp -R "$PROJECT/templates" src/
 cp -R "$PROJECT/static" src/
