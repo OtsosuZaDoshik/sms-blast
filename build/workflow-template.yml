@@ -1,0 +1,93 @@
+name: Сборка Windows exe
+
+# PyInstaller не умеет кросс-компиляцию: .exe собирается только на Windows.
+# Здесь это делает windows-раннер GitHub и отдаёт готовый файл артефактом.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PROJECT: panel
+  BUILD: build
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установить зависимости
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r "${env:PROJECT}/requirements.txt"
+          pip install pyinstaller
+
+      - name: Скопировать исходники в src
+        run: |
+          $src = "${env:BUILD}/src"
+          if (Test-Path $src) { Remove-Item -Recurse -Force $src }
+          New-Item -ItemType Directory -Path $src | Out-Null
+          Copy-Item "${env:PROJECT}/app.py" $src
+          Copy-Item "${env:PROJECT}/smsblast"  $src -Recurse
+          Copy-Item "${env:PROJECT}/templates" $src -Recurse
+          Copy-Item "${env:PROJECT}/static"    $src -Recurse
+          # База хранит пароль от шлюза — в сборку она попасть не должна.
+          Get-ChildItem $src -Recurse -Include *.db,*.db-wal,*.db-shm,.env |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+          Get-ChildItem $src -Recurse -Directory -Filter __pycache__ |
+            Remove-Item -Recurse -Force
+          Write-Host "Скопировано файлов: $((Get-ChildItem $src -Recurse -File).Count)"
+
+      - name: Собрать exe
+        working-directory: ${{ env.BUILD }}
+        run: pyinstaller --noconfirm --clean smsblast.spec
+
+      - name: Проверить, что exe запускается
+        working-directory: ${{ env.BUILD }}
+        env:
+          SMSBLAST_NO_BROWSER: "1"
+        run: |
+          $proc = Start-Process -FilePath "dist/smsblast.exe" -PassThru `
+                                -RedirectStandardOutput out.log `
+                                -RedirectStandardError err.log
+          $url = $null
+          foreach ($i in 1..60) {
+            Start-Sleep -Milliseconds 700
+            if (Test-Path out.log) {
+              $m = Select-String -Path out.log -Pattern "http://127\.0\.0\.1:\d+" |
+                   Select-Object -First 1
+              if ($m) { $url = $m.Matches[0].Value; break }
+            }
+          }
+          if (-not $url) {
+            Write-Host "--- stdout ---"; Get-Content out.log -ErrorAction SilentlyContinue
+            Write-Host "--- stderr ---"; Get-Content err.log -ErrorAction SilentlyContinue
+            throw "exe не поднял панель"
+          }
+          Write-Host "Панель поднялась на $url"
+          foreach ($path in @("/", "/contacts", "/settings", "/campaigns/new")) {
+            $code = (Invoke-WebRequest "$url$path" -UseBasicParsing).StatusCode
+            Write-Host "  $path -> $code"
+            if ($code -ne 200) { Stop-Process -Id $proc.Id -Force; throw "$path вернул $code" }
+          }
+          Stop-Process -Id $proc.Id -Force
+
+      - name: Размер файла
+        working-directory: ${{ env.BUILD }}
+        run: |
+          $f = Get-Item dist/smsblast.exe
+          Write-Host ("smsblast.exe — {0:N1} МБ" -f ($f.Length / 1MB))
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smsblast-windows
+          path: ${{ env.BUILD }}/dist/smsblast.exe
+          if-no-files-found: error
