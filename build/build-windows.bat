@@ -27,7 +27,9 @@ if not exist "%PROJECT%\app.py" (
 echo Copying sources from "%PROJECT%" ...
 if exist src rmdir /s /q src
 mkdir src
-copy /y "%PROJECT%\app.py" src\ >nul
+rem Копируем все модули верхнего уровня, а не поимённо: иначе новый файл
+rem (как desktop.py) молча не попадёт в сборку.
+copy /y "%PROJECT%\*.py" src\ >nul
 xcopy /e /i /y /q "%PROJECT%\smsblast"  src\smsblast\  >nul
 xcopy /e /i /y /q "%PROJECT%\templates" src\templates\ >nul
 xcopy /e /i /y /q "%PROJECT%\static"    src\static\    >nul

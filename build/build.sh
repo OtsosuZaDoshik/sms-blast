@@ -22,7 +22,9 @@ fi
 echo "Копирую исходники из «$PROJECT»…"
 rm -rf src build dist
 mkdir -p src
-cp "$PROJECT/app.py" "$PROJECT/desktop.py" src/
+# Все модули верхнего уровня разом: перечисление поимённо уже дважды
+# приводило к тому, что новый файл молча не попадал в сборку.
+cp "$PROJECT"/*.py src/
 cp -R "$PROJECT/smsblast" src/
 cp -R "$PROJECT/templates" src/
 cp -R "$PROJECT/static" src/
