@@ -232,6 +232,47 @@ if backups:
           sorted(r["name"] for r in db.list_contacts()) == ["Иван", "Пётр"],
           [r["name"] for r in db.list_contacts()])
 
+print("\n=== Вывод на системах без кириллицы (Windows cp1252) ===")
+import desktop  # noqa: E402
+
+def _cp1252_stream():
+    return io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
+
+real_out, real_err = sys.stdout, sys.stderr
+sys.stdout = sys.stderr = _cp1252_stream()
+try:
+    print("SMS-рассылка")
+    crashes = False
+except UnicodeEncodeError:
+    crashes = True
+sys.stdout, sys.stderr = real_out, real_err
+check("поток cp1252 действительно не принимает кириллицу", crashes)
+
+sys.stdout = sys.stderr = _cp1252_stream()
+try:
+    desktop.ensure_output()
+    print("SMS-рассылка: http://127.0.0.1:5001")
+    printed = True
+except UnicodeEncodeError:
+    printed = False
+finally:
+    sys.stdout, sys.stderr = real_out, real_err
+check("после ensure_output кириллица печатается без падения", printed)
+
+sys.stdout = sys.stderr = None
+try:
+    handle = desktop.ensure_output(os.path.join(TMP, "app.log"))
+    print("SMS-рассылка")
+    no_stdout_ok = True
+except Exception:
+    no_stdout_ok = False
+finally:
+    sys.stdout, sys.stderr = real_out, real_err
+check("при отсутствующем stdout вывод уходит в журнал", no_stdout_ok)
+check("журнал создан и содержит кириллицу",
+      os.path.exists(os.path.join(TMP, "app.log"))
+      and "рассылка" in open(os.path.join(TMP, "app.log"), encoding="utf-8").read())
+
 print("\n=== Страницы интерфейса ===")
 for url in ["/", "/contacts", "/optout", "/settings", "/campaigns/new",
             "/contacts/import", "/campaigns/{}".format(cid),

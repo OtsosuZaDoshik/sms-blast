@@ -17,16 +17,38 @@ PREFERRED_PORT = 5001
 
 
 def ensure_output(log_path=None):
-    """В оконной сборке Windows stdout равен None, и обычный print падает
-    с AttributeError. Перенаправляем вывод в файл журнала."""
-    if sys.stdout is not None and sys.stderr is not None:
-        return None
-    target = open(log_path, "a", encoding="utf-8", errors="replace") \
-        if log_path else open(os.devnull, "w")
-    if sys.stdout is None:
-        sys.stdout = target
-    if sys.stderr is None:
-        sys.stderr = target
+    """Приводит вывод в рабочее состояние на любой системе.
+
+    Две разные беды Windows:
+      * в оконной сборке stdout равен None — обычный print падает
+        с AttributeError;
+      * если вывод перенаправлен в файл, Python берёт кодировку системы
+        (cp1252 у английской Windows), и первая же кириллица в тексте
+        роняет программу с UnicodeEncodeError.
+    """
+    target = None
+    if sys.stdout is None or sys.stderr is None:
+        # buffering=1 — построчно: иначе при падении записи остаются в
+        # буфере и журнал оказывается пустым ровно тогда, когда нужен.
+        target = open(log_path, "a", encoding="utf-8", errors="replace",
+                      buffering=1) \
+            if log_path else open(os.devnull, "w")
+        if sys.stdout is None:
+            sys.stdout = target
+        if sys.stderr is None:
+            sys.stderr = target
+
+    # Существующий поток может быть в кодировке без кириллицы — переводим
+    # его в UTF-8, а непереводимые символы заменяем вместо падения.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError, AttributeError):
+            pass
+
     return target
 
 
